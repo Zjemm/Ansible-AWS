@@ -17,6 +17,7 @@
 # pip install boto3
 # pip install botocore
 # pip install ansible
+# pip install pexpect
 # ansible-galaxy install PaloAltoNetworks.paloaltonetworks
 #
 # STEPS
