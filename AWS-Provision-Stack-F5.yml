@@ -111,6 +111,23 @@
       debug:
          msg: "{{ cloudformation.stack_outputs.F5ManagementEIP }}"
 
+    # Add hosts Key to known hosts
+    - name: Write the new ec2 instance host key to known hosts
+      shell: "ssh-keyscan -H {{ cloudformation.stack_outputs.F5ManagementEIP }} >> ~/.ssh/known_hosts"
+
     # Wait for SSH connection
     - name: wait for SSH prompt (timeout 10min)
       wait_for: port=22 host="{{ cloudformation.stack_outputs.F5ManagementEIP }}" timeout=600
+
+    # Set F5 default admin password
+    - name: set admin
+      shell: ssh -i "{{ key_filename }}" admin@"{{ cloudformation.stack_outputs.F5ManagementEIP }}" 'modify auth user admin password admin'
+
+
+    # Set F5 default root password
+    - name: set root
+      expect:
+       command: ssh -i "{{ key_filename }}" admin@"{{ cloudformation.stack_outputs.F5ManagementEIP }}" 'modify auth password root'
+       responses:
+        new password: "default"
+        confirm password: "default"
