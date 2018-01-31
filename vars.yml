@@ -1,0 +1,7 @@
+# vars.yml
+
+region: us-west-2
+key_name: "panawsuswest2"
+key_filename: "/home/eesmi/.ssh/panawsuswest2.pem"
+admin_username: "admin"
+admin_password: "admin"

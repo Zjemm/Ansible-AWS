@@ -1,0 +1,193 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Install F5 Network BigIP VM-Series with BYOL in AWS",
+  "Parameters": {
+    "SSHKey": {
+      "Description": "Name of an existing EC2 KeyPair to enable SSH access to the server and VM-Series helper instance (Hint: You MUST have its private key)",
+      "Type": "AWS::EC2::KeyPair::KeyName"
+    },
+    "VPCidDATA": {
+      "Description": "Name of an existing EC2 VPC)",
+      "Type": "AWS::EC2::VPC::Id"
+    },
+    "SUBNETidDATA1": {
+      "Description": "Name of an existing EC2 DMZ SUBNET)",
+      "Type": "AWS::EC2::Subnet::Id"
+    },
+    "SUBNETidDATA2": {
+      "Description": "Name of an existing EC2 Trust SUBNET)",
+      "Type": "AWS::EC2::Subnet::Id"
+    },
+    "SUBNETidDATA3": {
+      "Description": "Name of an existing EC2 Management SUBNET)",
+      "Type": "AWS::EC2::Subnet::Id"
+    }
+  },
+
+  "Resources": {
+    "AWSNetworkInterfaceF51": {
+      "Type": "AWS::EC2::NetworkInterface",
+      "Properties": {
+        "Description": "AWS F5 BigIP DMZ",
+        "SubnetId": { "Ref": "SUBNETidDATA1" },
+        "PrivateIpAddresses": [
+          {
+            "PrivateIpAddress": "10.0.2.100",
+            "Primary": "true"
+          }
+        ],
+        "GroupSet": [
+          {
+            "Ref": "AWSSecurityGroupF5"
+          }
+        ]
+      }
+    },
+    "AWSNetworkInterfaceF52": {
+      "Type": "AWS::EC2::NetworkInterface",
+      "Properties": {
+        "Description": "AWS F5 BigIP Trust",
+        "SubnetId": { "Ref": "SUBNETidDATA2" },
+        "PrivateIpAddresses": [
+          {
+            "PrivateIpAddress": "10.0.1.100",
+            "Primary": "true"
+          }
+        ],
+        "GroupSet": [
+          {
+            "Ref": "AWSSecurityGroupF5"
+          }
+        ]
+      }
+    },
+    "AWSNetworkInterfaceF53": {
+      "Type": "AWS::EC2::NetworkInterface",
+      "Properties": {
+        "Description": "AWS F5 BigIP MGMT",
+        "SubnetId": { "Ref": "SUBNETidDATA3" },
+        "PrivateIpAddresses": [
+          {
+            "PrivateIpAddress": "10.0.0.100",
+            "Primary": "true"
+          }
+        ],
+        "GroupSet": [
+          {
+            "Ref": "AWSSecurityGroupF5"
+          }
+        ]
+      }
+    },
+    "AWSInstanceF51": {
+      "Type": "AWS::EC2::Instance",
+      "Properties": {
+        "ImageId": "ami-39da0841",
+        "InstanceType": "m3.xlarge",
+        "KeyName": { "Ref": "SSHKey" },
+        "Monitoring": "false",
+        "Tags": [
+          {
+            "Key": "Stack",
+            "Value": "StackF5"
+          },
+          {
+            "Key": "Name",
+            "Value": "F5 Networks VM-Series BigIP"
+          }
+        ],
+        "NetworkInterfaces": [
+          {
+            "Description": "F5 MGMT",
+            "DeviceIndex": 0,
+            "NetworkInterfaceId": { "Ref": "AWSNetworkInterfaceF53" },
+          },
+          {
+            "Description": "F5 DMZ",
+            "DeviceIndex": 1,
+            "NetworkInterfaceId": { "Ref": "AWSNetworkInterfaceF51" },
+          },
+          {
+            "Description": "F5 Trust",
+            "DeviceIndex": 2,
+            "NetworkInterfaceId": { "Ref": "AWSNetworkInterfaceF52" },
+          }
+        ]
+      },
+      "DependsOn": [ "AWSNetworkInterfaceF53", "AWSNetworkInterfaceF51", "AWSNetworkInterfaceF52" ]
+    },
+    "AWSSecurityGroupF5": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "F5 Wide open security group",
+        "VpcId": { "Ref": "VPCidDATA" },
+        "Tags": [
+          {
+            "Key": "Stack",
+            "Value": "StackF5"
+          },
+          {
+            "Key": "Name",
+            "Value": "F5 Wide open security group"
+          }
+        ]
+      }
+    },
+    "AWSEIP3": {
+      "Type": "AWS::EC2::EIP",
+      "Properties": {
+        "Domain": "vpc"
+      }
+    },
+    "assoc3": {
+      "Type": "AWS::EC2::EIPAssociation",
+      "Properties": {
+        "AllocationId": {
+          "Fn::GetAtt": [
+            "AWSEIP3",
+            "AllocationId"
+          ]
+        },
+        "NetworkInterfaceId": {
+          "Ref": "AWSNetworkInterfaceF53"
+        }
+      }
+    },
+    "ingress1": {
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties": {
+        "GroupId": {
+          "Ref": "AWSSecurityGroupF5"
+        },
+        "IpProtocol": "-1",
+        "CidrIp": "0.0.0.0/0"
+      }
+    },
+    "egress1": {
+      "Type": "AWS::EC2::SecurityGroupEgress",
+      "Properties": {
+        "GroupId": {
+          "Ref": "AWSSecurityGroupF5"
+        },
+        "IpProtocol": "-1",
+        "CidrIp": "0.0.0.0/0"
+      }
+    },
+  },
+  "Description": "Default Company F5 Stack",
+
+  "Outputs": {
+    "F5ManagementURL": {
+      "Description": "F5 VM-Series management interface URL",
+      "Value": { "Fn::Join" : ["", [
+        "https://",
+        { "Fn::GetAtt": [ "AWSInstanceF51", "PublicIp" ]}
+      ]]}
+    },
+    "F5ManagementEIP": {
+      "Description": "F5 VM-Series management interface EIP",
+      "Value": { "Fn::GetAtt": [ "AWSInstanceF51", "PublicIp" ]}
+    }
+  }
+
+}

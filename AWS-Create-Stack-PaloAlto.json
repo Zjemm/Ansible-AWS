@@ -1,0 +1,281 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Install Palo Alto VM-Series Firewall with BYOL in AWS",
+  "Parameters": {
+    "SSHKey": {
+      "Description": "Name of an existing EC2 KeyPair to enable SSH access to the server and VM-Series helper instance (Hint: You MUST have its private key)",
+      "Type": "AWS::EC2::KeyPair::KeyName"
+    },
+    "VPCidDATA": {
+      "Description": "Name of an existing EC2 VPC)",
+      "Type": "AWS::EC2::VPC::Id"
+    },
+    "SUBNETidDATA1": {
+      "Description": "Name of an existing EC2 Untrust SUBNET)",
+      "Type": "AWS::EC2::Subnet::Id"
+    },
+    "SUBNETidDATA2": {
+      "Description": "Name of an existing EC2 Trust SUBNET)",
+      "Type": "AWS::EC2::Subnet::Id"
+    },
+    "SUBNETidDATA3": {
+      "Description": "Name of an existing EC2 DMZ SUBNET)",
+      "Type": "AWS::EC2::Subnet::Id"
+    },
+    "SUBNETidDATA4": {
+      "Description": "Name of an existing EC2 Management SUBNET)",
+      "Type": "AWS::EC2::Subnet::Id"
+    }
+  },
+
+  "Resources": {
+    "AWSNetworkInterfacePaloAlto1": {
+      "Type": "AWS::EC2::NetworkInterface",
+      "Properties": {
+        "Description": "PaloAlto E1/1",
+        "SubnetId": { "Ref": "SUBNETidDATA1" },
+        "PrivateIpAddresses": [
+          {
+            "PrivateIpAddress": "10.0.10.254",
+            "Primary": "true"
+          }
+        ],
+        "GroupSet": [
+          {
+            "Ref": "AWSSecurityGroupPaloAlto"
+          }
+        ],
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "PaloAlto E1/1"
+          },
+          {
+            "Key": "Stack",
+            "Value": "StackPaloAlto"
+          }
+        ]
+      }
+    },
+    "AWSNetworkInterfacePaloAlto2": {
+      "Type": "AWS::EC2::NetworkInterface",
+      "Properties": {
+        "Description": "PaloAlto E1/2",
+        "SubnetId": { "Ref": "SUBNETidDATA2" },
+        "PrivateIpAddresses": [
+          {
+            "PrivateIpAddress": "10.0.1.254",
+            "Primary": "true"
+          }
+        ],
+        "GroupSet": [
+          {
+            "Ref": "AWSSecurityGroupPaloAlto"
+          }
+        ],
+        "Tags": [
+          {
+            "Key": "Stack",
+            "Value": "StackPaloAlto"
+          },
+          {
+            "Key": "Name",
+            "Value": "PaloAlto E1/2"
+          }
+        ]
+      }
+    },
+    "AWSNetworkInterfacePaloAlto3": {
+      "Type": "AWS::EC2::NetworkInterface",
+      "Properties": {
+        "Description": "PaloAlto E1/3",
+        "SubnetId": { "Ref": "SUBNETidDATA3" },
+        "PrivateIpAddresses": [
+          {
+            "PrivateIpAddress": "10.0.2.254",
+            "Primary": "true"
+          }
+        ],
+        "GroupSet": [
+          {
+            "Ref": "AWSSecurityGroupPaloAlto"
+          }
+        ],
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "PaloAlto E1/3"
+          },
+          {
+            "Key": "Stack",
+            "Value": "StackPaloAlto"
+          }
+        ]
+      }
+    },
+    "AWSNetworkInterfacePaloAlto4": {
+      "Type": "AWS::EC2::NetworkInterface",
+      "Properties": {
+        "Description": "PaloAlto MGMT",
+        "SubnetId": { "Ref": "SUBNETidDATA4" },
+        "PrivateIpAddresses": [
+          {
+            "PrivateIpAddress": "10.0.0.254",
+            "Primary": "true"
+          }
+        ],
+        "GroupSet": [
+          {
+            "Ref": "AWSSecurityGroupPaloAlto"
+          }
+        ],
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "PaloAlto E1/3"
+          },
+          {
+            "Key": "Stack",
+            "Value": "StackPaloAlto"
+          }
+        ]
+      }
+    },
+    "AWSInstancePaloAlto1": {
+      "Type": "AWS::EC2::Instance",
+      "Properties": {
+        "EbsOptimized": "true",
+        "ImageId": "ami-7e8a9107",
+        "InstanceType": "m4.xlarge",
+        "KeyName": { "Ref": "SSHKey" },
+        "Monitoring": "false",
+        "Tags": [
+          {
+            "Key": "Stack",
+            "Value": "StackPaloAlto"
+          },
+          {
+            "Key": "Name",
+            "Value": "Palo Alto VM-Series Firewall"
+          }
+        ],
+        "NetworkInterfaces": [
+          {
+            "Description": "PaloAlto MGMT",
+            "DeviceIndex": 0,
+            "NetworkInterfaceId": { "Ref": "AWSNetworkInterfacePaloAlto4" },
+          },
+          {
+            "Description": "PaloAlto Untrust",
+            "DeviceIndex": 1,
+            "NetworkInterfaceId": { "Ref": "AWSNetworkInterfacePaloAlto1" },
+          },
+          {
+            "Description": "PaloAlto Trust",
+            "DeviceIndex": 2,
+            "NetworkInterfaceId": { "Ref": "AWSNetworkInterfacePaloAlto2" },
+          },
+          {
+            "Description": "PaloAlto DMZ",
+            "DeviceIndex": 3,
+            "NetworkInterfaceId": { "Ref": "AWSNetworkInterfacePaloAlto3" },
+          }
+        ]
+      },
+      "DependsOn": [ "AWSNetworkInterfacePaloAlto4", "AWSNetworkInterfacePaloAlto1", "AWSNetworkInterfacePaloAlto2", "AWSNetworkInterfacePaloAlto3" ]
+    },
+    "AWSSecurityGroupPaloAlto": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "PaloAlto Wide open security group",
+        "VpcId": { "Ref": "VPCidDATA" },
+        "Tags": [
+          {
+            "Key": "Stack",
+            "Value": "StackPaloAlto"
+          },
+          {
+            "Key": "Name",
+            "Value": "PaloAlto Wide open security group"
+          }
+        ]
+      }
+    },
+    "AWSEIP1": {
+      "Type": "AWS::EC2::EIP",
+      "Properties": {
+        "Domain": "vpc"
+      }
+    },
+    "AWSEIP2": {
+      "Type": "AWS::EC2::EIP",
+      "Properties": {
+        "Domain": "vpc"
+      }
+    },
+    "assoc1": {
+      "Type": "AWS::EC2::EIPAssociation",
+      "Properties": {
+        "AllocationId": {
+          "Fn::GetAtt": [
+            "AWSEIP1",
+            "AllocationId"
+          ]
+        },
+        "NetworkInterfaceId": {
+          "Ref": "AWSNetworkInterfacePaloAlto1"
+        }
+      }
+    },
+    "assoc2": {
+      "Type": "AWS::EC2::EIPAssociation",
+      "Properties": {
+        "AllocationId": {
+          "Fn::GetAtt": [
+            "AWSEIP2",
+            "AllocationId"
+          ]
+        },
+        "NetworkInterfaceId": {
+          "Ref": "AWSNetworkInterfacePaloAlto4"
+        }
+      }
+    },
+    "ingress2": {
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties": {
+        "GroupId": {
+          "Ref": "AWSSecurityGroupPaloAlto"
+        },
+        "IpProtocol": "-1",
+        "CidrIp": "0.0.0.0/0"
+      }
+    },
+    "egress2": {
+      "Type": "AWS::EC2::SecurityGroupEgress",
+      "Properties": {
+        "GroupId": {
+          "Ref": "AWSSecurityGroupPaloAlto"
+        },
+        "IpProtocol": "-1",
+        "CidrIp": "0.0.0.0/0"
+      }
+    }
+  },
+  "Description": "Default Company Palo Alto Stack",
+
+  "Outputs": {
+    "FirewallManagementURL": {
+      "Description": "Palo Alto VM-Series management interface URL",
+      "Value": { "Fn::Join" : ["", [
+        "https://",
+        { "Fn::GetAtt": [ "AWSInstancePaloAlto1", "PublicIp" ]}
+      ]]}
+    },
+    "FirewallManagementEIP": {
+      "Description": "VM-Series management interface EIP",
+      "Value": { "Fn::GetAtt": [ "AWSInstancePaloAlto1", "PublicIp" ]}
+    }
+  }
+
+}

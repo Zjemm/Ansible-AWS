@@ -1,0 +1,593 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Install Palo Alto VM-Series Firewall with BYOL in AWS",
+  "Parameters": {
+    "SSHKey": {
+      "Description": "Name of an existing EC2 KeyPair to enable SSH access to the server and VM-Series helper instance (Hint: You MUST have its private key)",
+      "Type": "AWS::EC2::KeyPair::KeyName"
+    }
+  },
+
+  "Resources": {
+    "CompanyVPC": {
+      "Type": "AWS::EC2::VPC",
+      "Properties": {
+        "CidrBlock": "10.0.0.0/16",
+        "InstanceTenancy": "default",
+        "EnableDnsSupport": "true",
+        "EnableDnsHostnames": "true",
+        "Tags": [
+          {
+            "Key": "Stack",
+            "Value": "StackPaloAlto"
+          },
+          {
+            "Key": "Name",
+            "Value": "CompanyAWS Palo Alto With F5 BigIP"
+          }
+        ]
+      }
+    },
+    "subnetmanagement": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "CidrBlock": "10.0.0.0/24",
+        "AvailabilityZone": "us-west-2a",
+        "VpcId": {
+          "Ref": "CompanyVPC"
+        },
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "Management Subnet 10.0.0.0/24"
+          },
+          {
+            "Key": "Stack",
+            "Value": "StackPaloAlto"
+          }
+        ]
+      }
+    },
+    "subnettrust": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "CidrBlock": "10.0.1.0/24",
+        "AvailabilityZone": "us-west-2a",
+        "VpcId": {
+          "Ref": "CompanyVPC"
+        },
+        "Tags": [
+          {
+            "Key": "Stack",
+            "Value": "StackPaloAlto"
+          },
+          {
+            "Key": "Name",
+            "Value": "Trust Subnet 10.0.1.0/24"
+          }
+        ]
+      }
+    },
+    "subnetdmz": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "CidrBlock": "10.0.2.0/24",
+        "AvailabilityZone": "us-west-2a",
+        "VpcId": {
+          "Ref": "CompanyVPC"
+        },
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "DMZ Subnet 10.0.2.0/24"
+          },
+          {
+            "Key": "Stack",
+            "Value": "StackPaloAlto"
+          }
+        ]
+      }
+    },
+    "AWSInternetGateway": {
+      "Type": "AWS::EC2::InternetGateway",
+      "Properties": {
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "AWS Internet Gateway"
+          },
+          {
+            "Key": "Stack",
+            "Value": "StackPaloAlto"
+          }
+        ]
+      }
+    },
+    "AWSDhcpOptions": {
+      "Type": "AWS::EC2::DHCPOptions",
+      "Properties": {
+        "Tags": [
+          {
+            "Key": "Stack",
+            "Value": "StackPaloAlto"
+          }
+        ],
+        "DomainName": "us-west-2.compute.internal",
+        "DomainNameServers": [
+          "AmazonProvidedDNS"
+        ]
+      }
+    },
+    "AWSACL1": {
+      "Type": "AWS::EC2::NetworkAcl",
+      "Properties": {
+        "VpcId": {
+          "Ref": "CompanyVPC"
+        }
+      }
+    },
+    "AWSACL2": {
+      "Type": "AWS::EC2::NetworkAcl",
+      "Properties": {
+        "VpcId": {
+          "Ref": "CompanyVPC"
+        },
+        "Tags": [
+          {
+            "Key": "Stack",
+            "Value": "StackPaloAlto"
+          }
+        ]
+      }
+    },
+    "AWSRouteTable1": {
+      "Type": "AWS::EC2::RouteTable",
+      "Properties": {
+        "VpcId": {
+          "Ref": "CompanyVPC"
+        },
+        "Tags": [
+          {
+            "Key": "Stack",
+            "Value": "StackPaloAlto"
+          }
+        ]
+      }
+    },
+    "AWSRouteTable2": {
+      "Type": "AWS::EC2::RouteTable",
+      "Properties": {
+        "VpcId": {
+          "Ref": "CompanyVPC"
+        }
+      }
+    },
+    "AWSRouteTable3": {
+      "Type": "AWS::EC2::RouteTable",
+      "Properties": {
+        "VpcId": {
+          "Ref": "CompanyVPC"
+        },
+        "Tags": [
+          {
+            "Key": "Stack",
+            "Value": "StackPaloAlto"
+          }
+        ]
+      }
+    },
+    "AWSEIP1": {
+      "Type": "AWS::EC2::EIP",
+      "DependsOn": [
+        "AWSGateway1"
+      ],
+      "Properties": {
+        "Domain": "vpc"
+      }
+    },
+    "AWSEIP2": {
+      "Type": "AWS::EC2::EIP",
+      "DependsOn": [
+        "AWSGateway1"
+      ],
+      "Properties": {
+        "Domain": "vpc"
+      }
+    },
+    "AWSEIP3": {
+      "Type": "AWS::EC2::EIP",
+      "DependsOn": [
+        "AWSGateway1"
+      ],
+      "Properties": {
+        "Domain": "vpc"
+      }
+    },
+    "AWSNetworkInterfacePaloAlto1": {
+      "Type": "AWS::EC2::NetworkInterface",
+      "Properties": {
+        "Description": "PaloAlto E1/1",
+        "SubnetId": {
+          "Ref": "subnetmanagement"
+        },
+        "PrivateIpAddresses": [
+          {
+            "PrivateIpAddress": "10.0.0.254",
+            "Primary": "true"
+          }
+        ],
+        "GroupSet": [
+          {
+            "Ref": "AWSSecurityGroupPaloAlto"
+          }
+        ],
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "PaloAlto E1/1"
+          },
+          {
+            "Key": "Stack",
+            "Value": "StackPaloAlto"
+          }
+        ]
+      }
+    },
+    "AWSNetworkInterfacePaloAlto2": {
+      "Type": "AWS::EC2::NetworkInterface",
+      "Properties": {
+        "Description": "PaloAlto E1/2",
+        "SubnetId": {
+          "Ref": "subnettrust"
+        },
+        "PrivateIpAddresses": [
+          {
+            "PrivateIpAddress": "10.0.1.254",
+            "Primary": "true"
+          }
+        ],
+        "GroupSet": [
+          {
+            "Ref": "AWSSecurityGroupPaloAlto"
+          }
+        ],
+        "Tags": [
+          {
+            "Key": "Stack",
+            "Value": "StackPaloAlto"
+          },
+          {
+            "Key": "Name",
+            "Value": "PaloAlto E1/2"
+          }
+        ]
+      }
+    },
+    "AWSNetworkInterfacePaloAlto3": {
+      "Type": "AWS::EC2::NetworkInterface",
+      "Properties": {
+        "Description": "PaloAlto E1/3",
+        "SubnetId": {
+          "Ref": "subnetdmz"
+        },
+        "PrivateIpAddresses": [
+          {
+            "PrivateIpAddress": "10.0.2.254",
+            "Primary": "true"
+          }
+        ],
+        "GroupSet": [
+          {
+            "Ref": "AWSSecurityGroupPaloAlto"
+          }
+        ],
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "PaloAlto E1/3"
+          },
+          {
+            "Key": "Stack",
+            "Value": "StackPaloAlto"
+          }
+        ]
+      }
+    },
+    "AWSInstancePaloAlto1": {
+      "Type": "AWS::EC2::Instance",
+      "Properties": {
+        "EbsOptimized": "true",
+        "ImageId": "ami-7e8a9107",
+        "InstanceType": "m4.xlarge",
+        "KeyName": { "Ref": "SSHKey" },
+        "Monitoring": "false",
+        "Tags": [
+          {
+            "Key": "Stack",
+            "Value": "StackPaloAlto"
+          },
+          {
+            "Key": "Name",
+            "Value": "Palo Alto VM-Series Firewall"
+          }
+        ],
+        "NetworkInterfaces": [
+          {
+            "DeleteOnTermination": "true",
+            "Description": "PaloAlto MGMT",
+            "DeviceIndex": 0,
+            "SubnetId": {
+              "Ref": "subnetmanagement"
+            },
+            "PrivateIpAddresses": [
+              {
+                "PrivateIpAddress": "10.0.0.253",
+                "Primary": "true"
+              }
+            ],
+            "GroupSet": [
+              {
+                "Ref": "AWSSecurityGroupPaloAlto"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "AWSSecurityGroupPaloAlto": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "PaloAlto Wide open security group",
+        "VpcId": {
+          "Ref": "CompanyVPC"
+        },
+        "Tags": [
+          {
+            "Key": "Stack",
+            "Value": "StackPaloAlto"
+          },
+          {
+            "Key": "Name",
+            "Value": "PaloAlto Wide open security group"
+          }
+        ]
+      }
+    },
+    "acl1": {
+      "Type": "AWS::EC2::NetworkAclEntry",
+      "Properties": {
+        "CidrBlock": "0.0.0.0/0",
+        "Egress": "true",
+        "Protocol": "-1",
+        "RuleAction": "allow",
+        "RuleNumber": "100",
+        "NetworkAclId": {
+          "Ref": "AWSACL1"
+        }
+      }
+    },
+    "acl2": {
+      "Type": "AWS::EC2::NetworkAclEntry",
+      "Properties": {
+        "CidrBlock": "0.0.0.0/0",
+        "Protocol": "-1",
+        "RuleAction": "allow",
+        "RuleNumber": "100",
+        "NetworkAclId": {
+          "Ref": "AWSACL1"
+        }
+      }
+    },
+    "acl3": {
+      "Type": "AWS::EC2::NetworkAclEntry",
+      "Properties": {
+        "CidrBlock": "0.0.0.0/0",
+        "Egress": "true",
+        "Protocol": "-1",
+        "RuleAction": "allow",
+        "RuleNumber": "100",
+        "NetworkAclId": {
+          "Ref": "AWSACL2"
+        }
+      }
+    },
+    "acl4": {
+      "Type": "AWS::EC2::NetworkAclEntry",
+      "Properties": {
+        "CidrBlock": "0.0.0.0/0",
+        "Protocol": "-1",
+        "RuleAction": "allow",
+        "RuleNumber": "100",
+        "NetworkAclId": {
+          "Ref": "AWSACL2"
+        }
+      }
+    },
+    "subnetacl1": {
+      "Type": "AWS::EC2::SubnetNetworkAclAssociation",
+      "Properties": {
+        "NetworkAclId": {
+          "Ref": "AWSACL2"
+        },
+        "SubnetId": {
+          "Ref": "subnetdmz"
+        }
+      }
+    },
+    "subnetacl2": {
+      "Type": "AWS::EC2::SubnetNetworkAclAssociation",
+      "Properties": {
+        "NetworkAclId": {
+          "Ref": "AWSACL2"
+        },
+        "SubnetId": {
+          "Ref": "subnettrust"
+        }
+      }
+    },
+    "subnetacl3": {
+      "Type": "AWS::EC2::SubnetNetworkAclAssociation",
+      "Properties": {
+        "NetworkAclId": {
+          "Ref": "AWSACL2"
+        },
+        "SubnetId": {
+          "Ref": "subnetmanagement"
+        }
+      }
+    },
+    "AWSGateway1": {
+      "Type": "AWS::EC2::VPCGatewayAttachment",
+      "Properties": {
+        "VpcId": {
+          "Ref": "CompanyVPC"
+        },
+        "InternetGatewayId": {
+          "Ref": "AWSInternetGateway"
+        }
+      }
+    },
+    "subnetroute2": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "AWSRouteTable3"
+        },
+        "SubnetId": {
+          "Ref": "subnetmanagement"
+        }
+      }
+    },
+    "route1": {
+      "Type": "AWS::EC2::Route",
+      "Properties": {
+        "DestinationCidrBlock": "0.0.0.0/0",
+        "RouteTableId": {
+          "Ref": "AWSRouteTable1"
+        },
+        "GatewayId": {
+          "Ref": "AWSInternetGateway"
+        }
+      },
+      "DependsOn": "AWSGateway1"
+    },
+    "route2": {
+      "Type": "AWS::EC2::Route",
+      "Properties": {
+        "DestinationCidrBlock": "0.0.0.0/0",
+        "RouteTableId": {
+          "Ref": "AWSRouteTable3"
+        },
+        "GatewayId": {
+          "Ref": "AWSInternetGateway"
+        }
+      },
+      "DependsOn": "AWSGateway1"
+    },
+    "dchpassoc1": {
+      "Type": "AWS::EC2::VPCDHCPOptionsAssociation",
+      "Properties": {
+        "VpcId": {
+          "Ref": "CompanyVPC"
+        },
+        "DhcpOptionsId": {
+          "Ref": "AWSDhcpOptions"
+        }
+      }
+    },
+    "assoc1": {
+      "Type": "AWS::EC2::EIPAssociation",
+      "Properties": {
+        "AllocationId": {
+          "Fn::GetAtt": [
+            "AWSEIP2",
+            "AllocationId"
+          ]
+        },
+        "NetworkInterfaceId": {
+          "Ref": "AWSNetworkInterfacePaloAlto1"
+        }
+      }
+    },
+    "assoc2": {
+      "Type": "AWS::EC2::EIPAssociation",
+      "Properties": {
+        "AllocationId": {
+          "Fn::GetAtt": [
+            "AWSEIP1",
+            "AllocationId"
+          ]
+        },
+        "InstanceId": {
+          "Ref": "AWSInstancePaloAlto1"
+        }
+      }
+    },
+    "eniattach1": {
+      "Type": "AWS::EC2::NetworkInterfaceAttachment",
+      "Properties": {
+        "DeviceIndex": "3",
+        "NetworkInterfaceId": {
+          "Ref": "AWSNetworkInterfacePaloAlto3"
+        },
+        "InstanceId": {
+          "Ref": "AWSInstancePaloAlto1"
+        }
+      },
+      "DependsOn": [
+        "assoc2"
+      ]
+    },
+    "eniattach2": {
+      "Type": "AWS::EC2::NetworkInterfaceAttachment",
+      "Properties": {
+        "DeviceIndex": "1",
+        "NetworkInterfaceId": {
+          "Ref": "AWSNetworkInterfacePaloAlto1"
+        },
+        "InstanceId": {
+          "Ref": "AWSInstancePaloAlto1"
+        }
+      },
+      "DependsOn": [
+        "assoc2"
+      ]
+    },
+    "eniattach3": {
+      "Type": "AWS::EC2::NetworkInterfaceAttachment",
+      "Properties": {
+        "DeviceIndex": "2",
+        "NetworkInterfaceId": {
+          "Ref": "AWSNetworkInterfacePaloAlto2"
+        },
+        "InstanceId": {
+          "Ref": "AWSInstancePaloAlto1"
+        }
+      },
+      "DependsOn": [
+        "assoc2"
+      ]
+    },
+    "ingress2": {
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties": {
+        "GroupId": {
+          "Ref": "AWSSecurityGroupPaloAlto"
+        },
+        "IpProtocol": "-1",
+        "CidrIp": "0.0.0.0/0"
+      }
+    },
+    "egress2": {
+      "Type": "AWS::EC2::SecurityGroupEgress",
+      "Properties": {
+        "GroupId": {
+          "Ref": "AWSSecurityGroupPaloAlto"
+        },
+        "IpProtocol": "-1",
+        "CidrIp": "0.0.0.0/0"
+      }
+    }
+  },
+  "Description": "PaloAlto-F5-Create-Stack"
+}
